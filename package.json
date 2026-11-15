@@ -2,6 +2,14 @@
   "name": "sso-mussarelos",
   "version": "0.2.0",
   "description": "SSO com Discord para Express: só entra quem é membro do servidor configurado.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThiagoMargoni/sso-mussarelos.git"
+  },
+  "homepage": "https://github.com/ThiagoMargoni/sso-mussarelos#readme",
+  "bugs": {
+    "url": "https://github.com/ThiagoMargoni/sso-mussarelos/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

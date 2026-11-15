@@ -20,13 +20,15 @@ Login com Discord para sites em Express. **Só entra quem é membro do servidor*
 
 ## 2. Instalar
 
-Enquanto não estiver publicada no npm, instale direto da pasta (ou de um repositório git):
+Instale direto do GitHub, apontando para uma versão (tag):
 
 ```bash
-npm install express ../SSOMussarelos
+npm install express github:ThiagoMargoni/sso-mussarelos#v0.2.0
 ```
 
-O pacote usa o código compilado em `dist/`. Instalando pela pasta, rode `npm install && npm run build` dentro de `SSOMussarelos` sempre que mudar algo em `src/`. Instalando por um repositório git, o build roda sozinho (script `prepare`).
+O npm baixa o repositório e compila o TypeScript na hora (script `prepare`), então a pasta `dist/` não precisa estar no GitHub. Sem o `#v0.2.0`, ele pega o último commit da branch `main`. Para atualizar, troque a tag e rode `npm install` de novo.
+
+Para testar mudanças locais antes de publicar, dá para instalar pela pasta (`npm install ../sso-mussarelos`); nesse caso rode `npm run build` dentro dela sempre que mudar algo em `src/`.
 
 Se for salvar usuários, instale também o driver do PostgreSQL:
 
@@ -225,4 +227,4 @@ O código segue o padrão Mussarelos: TypeScript `strict` sem `any`, sem coment�
 
 Precisa de **Node 22.18 ou mais novo, de 64 bits**. São aceitas só as versões que ainda recebem correções de segurança (22, 24 e 26 LTS); para desenvolver, use a LTS mais recente. O compilador do TypeScript 7 é um programa nativo e não existe para Windows de 32 bits, e o próprio Node não tem versão de 32 bits desde a 23.
 
-Os testes simulam a API do Discord e usam um PostgreSQL em memória (`pg-mem`).
+Os testes simulam a API do Discord e usam um PostgreSQL em memória (`pg-mem`). O pg-mem não implementa o operador `jsonb || jsonb` (mesclar JSON), que o `sso.users.update` usa, então os testes registram esse operador no banco em memória com o mesmo comportamento do PostgreSQL.
