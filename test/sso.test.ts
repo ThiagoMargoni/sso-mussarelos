@@ -6,10 +6,18 @@ import { after, before, test } from "node:test";
 
 import express from "express";
 import type { Request } from "express";
-import { newDb } from "pg-mem";
+import { DataType, newDb } from "pg-mem";
 
 import { createDiscordSSO, getUser, useDiscordSSO } from "#src/index.js";
-import type { DiscordMember, DiscordSSO, DiscordSSOOptions, DiscordUser, PgPoolLike, SSOUser } from "#src/index.js";
+import type {
+  DiscordMember,
+  DiscordSSO,
+  DiscordSSOOptions,
+  DiscordUser,
+  PgPoolLike,
+  SSOUser,
+  UserData,
+} from "#src/index.js";
 
 interface FakeAccount {
   token: string;
@@ -192,8 +200,21 @@ function flipFirstChar(cookie: string): string {
   return `${name}=${flipped}`;
 }
 
+function mergeJsonb(left: UserData, right: UserData): UserData {
+  return { ...left, ...right };
+}
+
 function memoryPool(): PgPoolLike {
-  const { Pool } = newDb().adapters.createPg();
+  const db = newDb();
+  db.getSchema("pg_catalog").registerOperator({
+    operator: "||",
+    left: DataType.jsonb,
+    right: DataType.jsonb,
+    returns: DataType.jsonb,
+    implementation: mergeJsonb,
+  });
+
+  const { Pool } = db.adapters.createPg();
   return new Pool() as PgPoolLike;
 }
 
