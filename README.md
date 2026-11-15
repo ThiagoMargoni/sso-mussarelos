@@ -86,7 +86,7 @@ app.listen(3000);
 
 Funciona igual em JavaScript; é só não usar os tipos.
 
-Rode com `node --env-file=.env server.js` (Node 20.6+) ou use o pacote `dotenv`. Há um exemplo completo em `example/server.js` (`npm run example`).
+Rode com `node --env-file=.env server.js` ou use o pacote `dotenv`. Há um exemplo completo em `example/server.ts` (`npm run example`).
 
 ### O que tem em `req.user`
 
@@ -223,6 +223,6 @@ O código segue o padrão Mussarelos: TypeScript `strict` sem `any`, sem coment�
 | `npm test` | Typecheck, build e testes |
 | `npm run example` | Sobe o exemplo de `example/server.ts` usando o `.env` |
 
-A biblioteca compilada roda em Node 18.17+. Os testes e o exemplo rodam os arquivos `.ts` direto no Node, então precisam de **Node 22.18+**.
+Precisa de **Node 22.18 ou mais novo, de 64 bits**. São aceitas só as versões que ainda recebem correções de segurança (22, 24 e 26 LTS); para desenvolver, use a LTS mais recente. O compilador do TypeScript 7 é um programa nativo e não existe para Windows de 32 bits, e o próprio Node não tem versão de 32 bits desde a 23.
 
 Os testes simulam a API do Discord e usam um PostgreSQL em memória (`pg-mem`).
