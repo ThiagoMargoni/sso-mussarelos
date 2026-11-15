@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
 import http from "node:http";
-import type { IncomingMessage, Server, ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 
 import express from "express";
@@ -9,21 +7,9 @@ import type { Request } from "express";
 import { DataType, newDb } from "pg-mem";
 
 import { createDiscordSSO, getUser, useDiscordSSO } from "#src/index.js";
-import type {
-  DiscordMember,
-  DiscordSSO,
-  DiscordSSOOptions,
-  DiscordUser,
-  PgPoolLike,
-  SSOUser,
-  UserData,
-} from "#src/index.js";
-
-interface FakeAccount {
-  token: string;
-  user: DiscordUser;
-  member: DiscordMember | null;
-}
+import type { DiscordSSO, DiscordSSOOptions, PgPoolLike, SSOUser, UserData } from "#src/index.js";
+import { CLIENT_SECRET, GUILD_ID, listen, MEMBER_ID, OUTSIDER_ID, startFakeDiscord } from "#test/fake-discord.js";
+import type { FakeDiscord } from "#test/fake-discord.js";
 
 interface TestApp {
   url: string;
@@ -40,102 +26,17 @@ interface UserBody {
   user: SSOUser;
 }
 
-const GUILD_ID = "111111111111111111";
 const SECRET = "x".repeat(40);
-const CLIENT_SECRET = "secret";
-const MEMBER_ID = "222222222222222222";
-const OUTSIDER_ID = "333333333333333333";
 const SHORT_SESSION_SECONDS = 1;
 const EXPIRY_WAIT_MS = 2100;
 
-const FAKE_ACCOUNTS: Record<string, FakeAccount> = {
-  "code-member": {
-    token: "tok-member",
-    user: { id: MEMBER_ID, username: "membro", global_name: "Membro", avatar: null },
-    member: { nick: "Apelido" },
-  },
-  "code-outsider": {
-    token: "tok-outsider",
-    user: { id: OUTSIDER_ID, username: "intruso", global_name: null, avatar: "abc" },
-    member: null,
-  },
-};
-
-const ACCOUNTS_BY_TOKEN: Record<string, FakeAccount> = Object.fromEntries(
-  Object.values(FAKE_ACCOUNTS).map((account) => [account.token, account]),
-);
-
-let discordServer: Server;
-let discordUrl: string;
-
-function listen(server: Server): Promise<string> {
-  return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address() as AddressInfo;
-      resolve(`http://127.0.0.1:${port}`);
-    });
-  });
-}
-
-function sendJson(res: ServerResponse, status: number, body: object): void {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(body));
-}
-
-async function readBody(req: IncomingMessage): Promise<string> {
-  let body = "";
-  for await (const chunk of req) {
-    body += String(chunk);
-  }
-  return body;
-}
-
-async function handleTokenRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const params = new URLSearchParams(await readBody(req));
-  if (params.get("client_secret") !== CLIENT_SECRET) {
-    sendJson(res, 401, {});
-    return;
-  }
-
-  const account = FAKE_ACCOUNTS[params.get("code") ?? ""];
-  if (!account) {
-    sendJson(res, 400, { error: "invalid_grant" });
-    return;
-  }
-  sendJson(res, 200, { access_token: account.token });
-}
-
-function handleApiRequest(req: IncomingMessage, res: ServerResponse): void {
-  const account = ACCOUNTS_BY_TOKEN[(req.headers.authorization ?? "").replace("Bearer ", "")];
-  if (!account) {
-    sendJson(res, 401, {});
-    return;
-  }
-  if (req.url === "/users/@me") {
-    sendJson(res, 200, account.user);
-    return;
-  }
-  if (req.url !== `/users/@me/guilds/${GUILD_ID}/member`) {
-    sendJson(res, 404, {});
-    return;
-  }
-  sendJson(res, account.member ? 200 : 404, account.member ?? { code: 10004 });
-}
-
-function handleFakeDiscord(req: IncomingMessage, res: ServerResponse): void {
-  if (req.method === "POST" && req.url === "/oauth2/token") {
-    void handleTokenRequest(req, res);
-    return;
-  }
-  handleApiRequest(req, res);
-}
+let discord: FakeDiscord;
 
 before(async () => {
-  discordServer = http.createServer(handleFakeDiscord);
-  discordUrl = await listen(discordServer);
+  discord = await startFakeDiscord();
 });
 
-after(() => discordServer.close());
+after(() => discord.close());
 
 function baseOptions(extra: DiscordSSOOptions = {}): DiscordSSOOptions {
   return {
@@ -144,8 +45,8 @@ function baseOptions(extra: DiscordSSOOptions = {}): DiscordSSOOptions {
     redirectUri: "http://localhost/auth/callback",
     guildId: GUILD_ID,
     sessionSecret: SECRET,
-    discordApi: discordUrl,
-    authorizeUrl: `${discordUrl}/authorize`,
+    discordApi: discord.url,
+    authorizeUrl: `${discord.url}/authorize`,
     saveUsers: false,
     ...extra,
   };

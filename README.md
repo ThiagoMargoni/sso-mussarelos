@@ -23,10 +23,10 @@ Login com Discord para sites em Express. **Só entra quem é membro do servidor*
 Instale direto do GitHub, apontando para uma versão (tag):
 
 ```bash
-npm install express github:ThiagoMargoni/sso-mussarelos#v0.2.0
+npm install express github:ThiagoMargoni/sso-mussarelos#v0.3.0
 ```
 
-O npm baixa o repositório e compila o TypeScript na hora (script `prepare`), então a pasta `dist/` não precisa estar no GitHub. Sem o `#v0.2.0`, ele pega o último commit da branch `main`. Para atualizar, troque a tag e rode `npm install` de novo.
+O npm baixa o repositório e compila o TypeScript na hora (script `prepare`), então a pasta `dist/` não precisa estar no GitHub. Sem o `#v0.3.0`, ele pega o último commit da branch `main`. Para atualizar, troque a tag e rode `npm install` de novo.
 
 Para testar mudanças locais antes de publicar, dá para instalar pela pasta (`npm install ../sso-mussarelos`); nesse caso rode `npm run build` dentro dela sempre que mudar algo em `src/`.
 
@@ -149,6 +149,50 @@ O conteúdo de `data` aparece em `req.user.data` nas rotas protegidas. **Remover
 
 Já tem um pool do `pg` no projeto? Passe ele: `useDiscordSSO(app, { pool })`.
 
+## 6. Em sites estáticos (sem servidor)
+
+Para sites que só têm arquivos (GitHub Pages, por exemplo), a biblioteca tem um módulo de navegador. Ele usa o login do Discord feito para sites sem servidor: não existe client secret, e o acesso da pessoa fica salvo no navegador dela por até 7 dias.
+
+O build gera `dist/sso-mussarelos.browser.js`, um arquivo único que pode ser copiado para o site. Ele cria a variável global `SSOMussarelos`:
+
+```html
+<script src="sso-mussarelos.browser.js"></script>
+<script>
+  const opcoes = {
+    clientId: "ID DO APLICATIVO",
+    guildId: "ID DO SERVIDOR",
+    redirectUri: location.origin + location.pathname,
+    storage: localStorage,
+  };
+
+  async function iniciar() {
+    const retorno = await SSOMussarelos.finishLogin(opcoes, location.href);
+    const sessao = retorno.status === "ok" ? retorno.session : await SSOMussarelos.refreshSession(opcoes);
+    if (!sessao) {
+      location.assign(SSOMussarelos.createLoginUrl(opcoes, location.hash));
+      return;
+    }
+    console.log("Entrou como", sessao.user.nick ?? sessao.user.username);
+  }
+  iniciar();
+</script>
+```
+
+Com bundler (Vite, por exemplo), importe de `sso-mussarelos/browser`.
+
+| Função | O que faz |
+|---|---|
+| `createLoginUrl(opcoes, returnTo)` | Devolve o endereço de login do Discord e guarda a proteção contra login forjado (`state`). `returnTo` volta no resultado do login, útil para guardar o `#` da página |
+| `finishLogin(opcoes, endereço)` | Lê a volta do Discord. Devolve `status`: `ok` (com `session`), `not-member`, `cancelled`, `invalid` (state errado ou repetido) ou `none` (o endereço não é uma volta de login) |
+| `checkMember(opcoes, acesso)` | Pergunta ao Discord se o dono do acesso está no servidor; devolve o `SSOUser` ou `null` |
+| `loadSession(opcoes)` | Lê a sessão salva, descartando a que vence em menos de 1 minuto |
+| `refreshSession(opcoes)` | Confere a sessão salva no Discord, atualiza o apelido e apaga a sessão de quem saiu do servidor |
+| `clearSession(opcoes)` | Sai da conta neste navegador |
+
+`opcoes` aceita também `discordApi`, `authorizeUrl` e `storageKey` (prefixo das chaves no `localStorage`, padrão `sso-mussarelos`). No portal do Discord, cadastre em **OAuth2 > Redirects** o endereço exato da página (o `redirectUri`).
+
+**Segurança.** A conferência que roda no navegador da própria pessoa serve para mostrar a tela certa, mas quem quiser burlar pode mudar o código da página. Quando outra pessoa precisa confiar no login (por exemplo, quem libera uma sala), mande o acesso para ela e deixe que ela chame `checkMember`. Quem recebe o acesso consegue ler o perfil e os dados de membro do servidor de quem o enviou enquanto ele valer, e nada além disso (os escopos são só `identify` e `guilds.members.read`). Para cancelar um acesso antes de vencer, a pessoa remove o app em **Configurações do Discord > Aplicativos Autorizados**.
+
 ## Opções avançadas
 
 Tudo que vem das variáveis de ambiente também pode ser passado no código. Outras opções:
@@ -191,6 +235,8 @@ Tudo é exportado de `sso-mussarelos`:
 | `DiscordUser`, `DiscordMember` | O que vem da API do Discord (usado em `onDenied`) |
 | `PgPoolLike`, `PgQueryResult` | O formato de pool aceito em `pool` |
 
+O módulo de navegador (`sso-mussarelos/browser`) exporta `BrowserSSOOptions`, `BrowserSession`, `LoginResult`, `MemberCheckOptions`, `KeyValueStorage` e `SSOUser`.
+
 `req.user` é tipado automaticamente em todo o projeto assim que você importa a biblioteca. `data` é `Record<string, unknown>`: ao ler um campo, confira o tipo antes de usar (`typeof user.data?.role === "string"`).
 
 ## Estrutura do código
@@ -204,6 +250,7 @@ Tudo é exportado de `sso-mussarelos`:
 | `src/discord.ts` | Fala com a API OAuth2 do Discord e checa se a pessoa é membro do servidor |
 | `src/store.ts` | Guarda os usuários no PostgreSQL; o `pg` só é carregado quando `SSO_SAVE_USERS=true` |
 | `src/pages.ts` | Páginas de erro (login cancelado, acesso negado...) |
+| `src/browser.ts` | Módulo de navegador para sites estáticos: login sem segredo, sessão no `localStorage` e `checkMember` |
 
 Os imports internos usam `#src/arquivo.js`. O campo `imports` do `package.json` aponta isso para `src/*.ts` durante o desenvolvimento (condição `sso-source`, ligada no `tsconfig.json`) e para `dist/*.js` no pacote compilado.
 
@@ -221,7 +268,8 @@ O código segue o padrão Mussarelos: TypeScript `strict` sem `any`, sem coment�
 | Comando | O que faz |
 |---|---|
 | `npm run typecheck` | Confere os tipos de `src/`, `test/` e `example/` |
-| `npm run build` | Compila `src/` para `dist/` (JS + `.d.ts`) |
+| `npm run build` | Compila `src/` para `dist/` (JS + `.d.ts`) e gera `dist/sso-mussarelos.browser.js` |
+| `npm run build:browser` | Gera só o arquivo único do navegador, com o esbuild |
 | `npm test` | Typecheck, build e testes |
 | `npm run example` | Sobe o exemplo de `example/server.ts` usando o `.env` |
 

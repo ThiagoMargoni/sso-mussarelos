@@ -1,3 +1,4 @@
+import { DISCORD_API_URL, DISCORD_AUTHORIZE_URL } from "#src/discord.js";
 import type { DiscordSSOOptions, SSOConfig } from "#src/types.js";
 
 type RequiredKey = "clientId" | "clientSecret" | "redirectUri" | "guildId" | "sessionSecret";
@@ -55,8 +56,8 @@ function readOptions(overrides: DiscordSSOOptions, env: NodeJS.ProcessEnv): RawC
     afterLogin: overrides.afterLogin ?? "/",
     afterLogout: overrides.afterLogout ?? "/",
     onDenied: overrides.onDenied,
-    discordApi: trimSlashes(overrides.discordApi ?? "https://discord.com/api/v10"),
-    authorizeUrl: overrides.authorizeUrl ?? "https://discord.com/oauth2/authorize",
+    discordApi: trimSlashes(overrides.discordApi ?? DISCORD_API_URL),
+    authorizeUrl: overrides.authorizeUrl ?? DISCORD_AUTHORIZE_URL,
   };
 }
 

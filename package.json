@@ -1,6 +1,6 @@
 {
   "name": "sso-mussarelos",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SSO com Discord para Express: só entra quem é membro do servidor configurado.",
   "repository": {
     "type": "git",
@@ -17,19 +17,25 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
     }
   },
   "imports": {
     "#src/*.js": {
       "sso-source": "./src/*.ts",
       "default": "./dist/*.js"
-    }
+    },
+    "#test/*.js": "./test/*.ts"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && npm run build:browser",
+    "build:browser": "esbuild src/browser.ts --bundle --format=iife --global-name=SSOMussarelos --platform=browser --target=es2022 --conditions=sso-source --outfile=dist/sso-mussarelos.browser.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run typecheck && npm run build && node --test \"test/*.test.ts\"",
     "example": "npm run build && node --env-file=.env example/server.ts",
@@ -43,6 +49,9 @@
     "pg": "^8.23.0"
   },
   "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    },
     "pg": {
       "optional": true
     }
@@ -51,6 +60,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.23.1",
+    "esbuild": "^0.28.2",
     "express": "^5.3.0",
     "pg": "^8.23.1",
     "pg-mem": "^3.0.14",

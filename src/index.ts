@@ -4,13 +4,13 @@ import { Router } from "express";
 import type { Express, NextFunction, Request, Response } from "express";
 
 import { loadConfig } from "#src/config.js";
-import { avatarUrl, buildAuthorizeUrl, DiscordError, exchangeCode, fetchGuildMember, fetchUser } from "#src/discord.js";
+import { buildAuthorizeUrl, DiscordError, exchangeCode, fetchGuildMember, fetchUser, toSSOUser } from "#src/discord.js";
 import { MESSAGES, renderPage } from "#src/pages.js";
 import type { PageMessage } from "#src/pages.js";
 import { appendCookie, createToken, parseCookies, readToken, safeReturnTo, serializeCookie } from "#src/session.js";
 import { createStore } from "#src/store.js";
 import type { UserStore } from "#src/store.js";
-import type { DiscordMember, DiscordSSO, DiscordSSOOptions, DiscordUser, SSOUser, UsersApi } from "#src/types.js";
+import type { DiscordSSO, DiscordSSOOptions, SSOUser, UsersApi } from "#src/types.js";
 
 export type {
   DeniedHandler,
@@ -42,17 +42,6 @@ const STATE_MAX_AGE = 10 * 60;
 const STATE_BYTES = 16;
 const LOG_PREFIX = "[sso-mussarelos]";
 const MISSING_USER_MESSAGE = `${LOG_PREFIX} getUser(req) foi chamado numa rota sem sso.requireAuth.`;
-
-function buildSessionUser(discordUser: DiscordUser, member: DiscordMember): SSOUser {
-  return {
-    id: discordUser.id,
-    username: discordUser.username,
-    globalName: discordUser.global_name ?? null,
-    nick: member.nick ?? null,
-    avatar: discordUser.avatar ?? null,
-    avatarUrl: avatarUrl(discordUser),
-  };
-}
 
 function checkCallback(query: Request["query"], saved: StatePayload | null): CallbackCheck {
   if (query.error) {
@@ -159,7 +148,7 @@ export function createDiscordSSO(options: DiscordSSOOptions = {}): DiscordSSO {
 
     setCookie(res, STATE_COOKIE, stateToken, STATE_MAX_AGE);
     res.setHeader("Cache-Control", "no-store");
-    res.redirect(302, buildAuthorizeUrl(config, state));
+    res.redirect(302, buildAuthorizeUrl(config, state, "code"));
   }
 
   async function completeLogin(req: Request, res: Response, code: string, returnTo: string): Promise<void> {
@@ -177,7 +166,7 @@ export function createDiscordSSO(options: DiscordSSOOptions = {}): DiscordSSO {
       return;
     }
 
-    const user = buildSessionUser(discordUser, member);
+    const user = toSSOUser(discordUser, member);
     if (store) {
       await store.upsertFromLogin(user);
     }

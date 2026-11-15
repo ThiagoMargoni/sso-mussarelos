@@ -1,8 +1,17 @@
-import type { DiscordMember, DiscordUser, SSOConfig } from "#src/types.js";
+import type { DiscordMember, DiscordUser, SSOConfig, SSOUser } from "#src/types.js";
+
+export type ApiConfig = Pick<SSOConfig, "discordApi" | "guildId">;
+
+export type AuthorizeConfig = Pick<SSOConfig, "authorizeUrl" | "clientId" | "redirectUri">;
+
+export type ResponseType = "code" | "token";
 
 interface TokenResponse {
   access_token?: unknown;
 }
+
+export const DISCORD_API_URL = "https://discord.com/api/v10";
+export const DISCORD_AUTHORIZE_URL = "https://discord.com/oauth2/authorize";
 
 const SCOPES = ["identify", "guilds.members.read"];
 const CDN_URL = "https://cdn.discordapp.com";
@@ -21,14 +30,14 @@ export class DiscordError extends Error {
   }
 }
 
-async function apiGet(config: SSOConfig, path: string, token: string): Promise<Response> {
+async function apiGet(config: ApiConfig, path: string, token: string): Promise<Response> {
   return fetch(`${config.discordApi}${path}`, { headers: { Authorization: `Bearer ${token}` } });
 }
 
-export function buildAuthorizeUrl(config: SSOConfig, state: string): string {
+export function buildAuthorizeUrl(config: AuthorizeConfig, state: string, responseType: ResponseType): string {
   const url = new URL(config.authorizeUrl);
   url.searchParams.set("client_id", config.clientId);
-  url.searchParams.set("response_type", "code");
+  url.searchParams.set("response_type", responseType);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
@@ -59,7 +68,7 @@ export async function exchangeCode(config: SSOConfig, code: string): Promise<str
   return data.access_token;
 }
 
-export async function fetchUser(config: SSOConfig, token: string): Promise<DiscordUser> {
+export async function fetchUser(config: ApiConfig, token: string): Promise<DiscordUser> {
   const res = await apiGet(config, "/users/@me", token);
   if (!res.ok) {
     throw new DiscordError(`Falha ao buscar o usuário (${res.status})`, res.status);
@@ -67,7 +76,7 @@ export async function fetchUser(config: SSOConfig, token: string): Promise<Disco
   return (await res.json()) as DiscordUser;
 }
 
-export async function fetchGuildMember(config: SSOConfig, token: string): Promise<DiscordMember | null> {
+export async function fetchGuildMember(config: ApiConfig, token: string): Promise<DiscordMember | null> {
   const res = await apiGet(config, `/users/@me/guilds/${config.guildId}/member`, token);
   if (NOT_MEMBER_STATUSES.includes(res.status)) {
     return null;
@@ -86,4 +95,15 @@ export function avatarUrl(user: DiscordUser): string {
 
   const index = (BigInt(user.id) >> SNOWFLAKE_TIMESTAMP_SHIFT) % DEFAULT_AVATAR_COUNT;
   return `${CDN_URL}/embed/avatars/${index}.png`;
+}
+
+export function toSSOUser(discordUser: DiscordUser, member: DiscordMember): SSOUser {
+  return {
+    id: discordUser.id,
+    username: discordUser.username,
+    globalName: discordUser.global_name ?? null,
+    nick: member.nick ?? null,
+    avatar: discordUser.avatar ?? null,
+    avatarUrl: avatarUrl(discordUser),
+  };
 }
