@@ -74,5 +74,8 @@
     "auth",
     "typescript"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
 }
